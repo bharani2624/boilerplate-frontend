@@ -186,3 +186,47 @@ npm run dev
 Requires the backend running on the URL set in `NEXT_PUBLIC_API_URL`, with a matching
 `GOOGLE_CLIENT_ID`. No Docker required for local dev — the Dockerfile is only for deploying
 to Render.
+
+## Deployment (Render)
+
+Same flow as the backend (see its `AGENTS.md` "Deployment (Render)" section for the
+GitHub-App-access and empty-env-var-row snags — both apply here too, since it's the
+same Render account/GitHub connection). Deploy the **backend first** — this service's
+`NEXT_PUBLIC_API_URL` needs the backend's live URL.
+
+**Instance type: Free**, same reasoning as the backend — don't upgrade to a paid type
+without being asked to. Free instances spin down on inactivity; expected, not a bug.
+
+**Env vars to set on Render:**
+```
+NEXT_PUBLIC_API_URL=<backend's Render URL, no trailing slash>
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=<same Google OAuth client id as the backend's GOOGLE_CLIENT_ID>
+```
+
+**After both services are live, two things need updating with the real URLs** (easy to
+forget since they only exist after first deploy):
+1. Backend's `API_CORS_ORIGINS` env var → add this frontend's Render URL (comma-separated
+   alongside `http://localhost:3000`) → Render redeploys automatically on env var change.
+2. Google Cloud Console → the OAuth client's **Authorized JavaScript origins** → add
+   this frontend's Render URL. Without this, `GoogleLogin` will fail in production even
+   though it worked locally — the origin allowlist is per-URL, not per-app.
+
+**Known snag — `NEXT_PUBLIC_*` env vars set in Render's dashboard don't reach the
+deployed app on their own.** Next.js inlines `NEXT_PUBLIC_*` variables into the client
+JS bundle at `next build` time — they are not read at container runtime the way
+`GOOGLE_CLIENT_ID` is on the backend. Render's dashboard env vars are only injected as
+*runtime* environment variables into the running container; for a Docker-based service
+they are **not** automatically available during the `docker build` step (where `RUN npm
+run build` happens). Symptom: Google login fails in production with `Missing required
+parameter: client_id` even though `NEXT_PUBLIC_GOOGLE_CLIENT_ID` is correctly set in
+Render's dashboard, and even though the exact same build works locally (where
+`.env.local` is read directly by `next build`).
+
+Fix (already applied in `Dockerfile`): declare `ARG NEXT_PUBLIC_API_URL` and `ARG
+NEXT_PUBLIC_GOOGLE_CLIENT_ID` in the `builder` stage, then `ENV` them from those ARGs
+immediately before `RUN npm run build`. Render automatically forwards every dashboard
+env var as a Docker build arg — the Dockerfile just needs to explicitly opt each one in
+via `ARG`/`ENV`, or it's silently `undefined` in the shipped bundle. **Adding a new
+`NEXT_PUBLIC_*` variable later needs the same two-line treatment in the `Dockerfile`'s
+builder stage** — setting it in Render's dashboard alone is not sufficient for anything
+prefixed `NEXT_PUBLIC_`.
