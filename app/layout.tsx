@@ -1,14 +1,11 @@
-// Root layout — the one file every page in app/ is rendered inside of. Why it's here:
-// Next.js App Router requires a root layout; this is also where AppProviders (react
-// query, MUI theme, Google OAuth) gets mounted once for the whole app, rather than
-// each page having to wrap itself.
+// Root layout — AppProviders (react-query, MUI, Google OAuth) for every page.
 import { ReactNode } from "react"
 import { Metadata } from "next"
 import { AppProviders } from "@components/AppProviders"
 
 export const metadata: Metadata = {
-  title: "Boilerplate",
-  description: "Next.js + FastAPI + Supabase boilerplate",
+  title: "Promo Engine",
+  description: "Checkout with promo codes — percent off, fixed off, min spend, expiry",
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {
